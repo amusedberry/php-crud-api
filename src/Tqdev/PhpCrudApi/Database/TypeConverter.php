@@ -46,9 +46,7 @@ class TypeConverter
             'timestamp_with_timezone' => 'timestamp',
         ],
         'mysql' => [
-            'tinyint(1)' => 'boolean',
-            'bit(0)' => 'boolean',
-            'bit(1)' => 'boolean',
+            'bit' => 'boolean',
             'tinyblob' => 'blob',
             'mediumblob' => 'blob',
             'longblob' => 'blob',
@@ -61,6 +59,7 @@ class TypeConverter
             'polygon' => 'geometry',
             'point' => 'geometry',
             'datetime' => 'timestamp',
+            'year' => 'integer',
             'enum' => 'varchar',
             'json' => 'clob',
         ],

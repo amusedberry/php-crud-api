@@ -15,8 +15,11 @@ use Tqdev\PhpCrudApi\Middleware\BasicAuthMiddleware;
 use Tqdev\PhpCrudApi\Middleware\CorsMiddleware;
 use Tqdev\PhpCrudApi\Middleware\CustomizationMiddleware;
 use Tqdev\PhpCrudApi\Middleware\FirewallMiddleware;
+use Tqdev\PhpCrudApi\Middleware\IpAddressMiddleware;
+use Tqdev\PhpCrudApi\Middleware\JoinLimitsMiddleware;
 use Tqdev\PhpCrudApi\Middleware\JwtAuthMiddleware;
 use Tqdev\PhpCrudApi\Middleware\MultiTenancyMiddleware;
+use Tqdev\PhpCrudApi\Middleware\PageLimitsMiddleware;
 use Tqdev\PhpCrudApi\Middleware\Router\SimpleRouter;
 use Tqdev\PhpCrudApi\Middleware\SanitationMiddleware;
 use Tqdev\PhpCrudApi\Middleware\ValidationMiddleware;
@@ -44,7 +47,7 @@ class Api
         $cache = CacheFactory::create($config);
         $reflection = new ReflectionService($db, $cache, $config->getCacheTime());
         $responder = new Responder();
-        $router = new SimpleRouter($responder, $cache, $config->getCacheTime());
+        $router = new SimpleRouter($responder, $cache, $config->getCacheTime(), $config->getDebug());
         foreach ($config->getMiddlewares() as $middleware => $properties) {
             switch ($middleware) {
                 case 'cors':
@@ -62,6 +65,9 @@ class Api
                 case 'validation':
                     new ValidationMiddleware($router, $responder, $properties, $reflection);
                     break;
+                case 'ipAddress':
+                    new IpAddressMiddleware($router, $responder, $properties, $reflection);
+                    break;
                 case 'sanitation':
                     new SanitationMiddleware($router, $responder, $properties, $reflection);
                     break;
@@ -73,6 +79,12 @@ class Api
                     break;
                 case 'xsrf':
                     new XsrfMiddleware($router, $responder, $properties);
+                    break;
+                case 'pageLimits':
+                    new PageLimitsMiddleware($router, $responder, $properties, $reflection);
+                    break;
+                case 'joinLimits':
+                    new JoinLimitsMiddleware($router, $responder, $properties, $reflection);
                     break;
                 case 'customization':
                     new CustomizationMiddleware($router, $responder, $properties, $reflection);
@@ -109,23 +121,9 @@ class Api
         try {
             $response = $this->router->route($request);
         } catch (\Throwable $e) {
-            if ($e instanceof \PDOException) {
-                if (strpos(strtolower($e->getMessage()), 'duplicate') !== false) {
-                    return $this->responder->error(ErrorCode::DUPLICATE_KEY_EXCEPTION, '');
-                }
-                if (strpos(strtolower($e->getMessage()), 'default value') !== false) {
-                    return $this->responder->error(ErrorCode::DATA_INTEGRITY_VIOLATION, '');
-                }
-                if (strpos(strtolower($e->getMessage()), 'allow nulls') !== false) {
-                    return $this->responder->error(ErrorCode::DATA_INTEGRITY_VIOLATION, '');
-                }
-                if (strpos(strtolower($e->getMessage()), 'constraint') !== false) {
-                    return $this->responder->error(ErrorCode::DATA_INTEGRITY_VIOLATION, '');
-                }
-            }
             $response = $this->responder->error(ErrorCode::ERROR_NOT_FOUND, $e->getMessage());
             if ($this->debug) {
-                $response->addHeader('X-Debug-Info', 'Exception in ' . $e->getFile() . ' on line ' . $e->getLine());
+                $response->addExceptionHeaders($e);
             }
         }
         return $response;

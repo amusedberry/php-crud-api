@@ -1402,9 +1402,9 @@ class ColumnsBuilder
             return '';
         }
         switch ($this->driver) {
-            case 'mysql':return "LIMIT $offset, $limit";
-            case 'pgsql':return "LIMIT $limit OFFSET $offset";
-            case 'sqlsrv':return "OFFSET $offset ROWS FETCH NEXT $limit ROWS ONLY";
+            case 'mysql':return " LIMIT $offset, $limit";
+            case 'pgsql':return " LIMIT $limit OFFSET $offset";
+            case 'sqlsrv':return " OFFSET $offset ROWS FETCH NEXT $limit ROWS ONLY";
         }
     }
 
@@ -1415,13 +1415,16 @@ class ColumnsBuilder
 
     public function getOrderBy(ReflectedTable $table, array $columnOrdering): String
     {
+        if (count($columnOrdering)==0) {
+            return '';
+        }
         $results = array();
         foreach ($columnOrdering as $i => list($columnName, $ordering)) {
             $column = $table->getColumn($columnName);
             $quotedColumnName = $this->quoteColumnName($column);
             $results[] = $quotedColumnName . ' ' . $ordering;
         }
-        return implode(',', $results);
+        return ' ORDER BY '.implode(',', $results);
     }
 
     public function getSelect(ReflectedTable $table, array $columnNames): String
@@ -1941,20 +1944,6 @@ class GenericDB
         return $stmt->fetchColumn(0);
     }
 
-    public function selectAllUnordered(ReflectedTable $table, array $columnNames, Condition $condition): array
-    {
-        $selectColumns = $this->columns->getSelect($table, $columnNames);
-        $tableName = $table->getName();
-        $condition = $this->addMiddlewareConditions($tableName, $condition);
-        $parameters = array();
-        $whereClause = $this->conditions->getWhereClause($condition, $parameters);
-        $sql = 'SELECT ' . $selectColumns . ' FROM "' . $tableName . '"' . $whereClause;
-        $stmt = $this->query($sql, $parameters);
-        $records = $stmt->fetchAll();
-        $this->converter->convertRecords($table, $columnNames, $records);
-        return $records;
-    }
-
     public function selectAll(ReflectedTable $table, array $columnNames, Condition $condition, array $columnOrdering, int $offset, int $limit): array
     {
         if ($limit == 0) {
@@ -1967,7 +1956,7 @@ class GenericDB
         $whereClause = $this->conditions->getWhereClause($condition, $parameters);
         $orderBy = $this->columns->getOrderBy($table, $columnOrdering);
         $offsetLimit = $this->columns->getOffsetLimit($offset, $limit);
-        $sql = 'SELECT ' . $selectColumns . ' FROM "' . $tableName . '"' . $whereClause . ' ORDER BY ' . $orderBy . ' ' . $offsetLimit;
+        $sql = 'SELECT ' . $selectColumns . ' FROM "' . $tableName . '"' . $whereClause . $orderBy . $offsetLimit;
         $stmt = $this->query($sql, $parameters);
         $records = $stmt->fetchAll();
         $this->converter->convertRecords($table, $columnNames, $records);
@@ -2095,9 +2084,8 @@ class GenericDefinition
             case 'mysql':
                 return $column->getPk() ? ' AUTO_INCREMENT' : '';
             case 'pgsql':
-                return '';
             case 'sqlsrv':
-                return ($column->getPk() && !$update) ? ' IDENTITY(1,1)' : '';
+                return '';
         }
     }
 
@@ -2189,7 +2177,7 @@ class GenericDefinition
                 return "ALTER TABLE $p1 $p4";
             case 'pgsql':
             case 'sqlsrv':
-                $p4 = $newColumn->getPk() ? "ADD PRIMARY KEY ($p2)" : "DROP CONSTRAINT $p3";
+                $p4 = $newColumn->getPk() ? "ADD CONSTRAINT $p3 PRIMARY KEY ($p2)" : "DROP CONSTRAINT $p3";
                 return "ALTER TABLE $p1 $p4";
         }
     }
@@ -2214,15 +2202,17 @@ class GenericDefinition
     {
         $p1 = $this->quote($tableName);
         $p2 = $this->quote($columnName);
-        $p3 = $this->pdo->quote($tableName . '_' . $columnName . '_seq');
-
+        
         switch ($this->driver) {
             case 'mysql':
                 return "select 1";
             case 'pgsql':
+                $p3 = $this->pdo->quote($tableName . '_' . $columnName . '_seq');
                 return "SELECT setval($p3, (SELECT max($p2)+1 FROM $p1));";
             case 'sqlsrv':
-                return "ALTER SEQUENCE $p3 RESTART WITH (SELECT max($p2)+1 FROM $p1)";
+                $p3 = $this->quote($tableName . '_' . $columnName . '_seq');
+                $p4 = $this->pdo->query("SELECT max($p2)+1 FROM $p1")->fetchColumn();
+                return "ALTER SEQUENCE $p3 RESTART WITH $p4";
         }
     }
 
@@ -2245,8 +2235,8 @@ class GenericDefinition
                 }
                 return "ALTER TABLE $p1 ALTER COLUMN $p2 $p4";
             case 'sqlsrv':
-                $p3 = $this->pdo->quote($tableName . '_' . $columnName . '_seq');
-                $p4 = $this->quote('DF_' . $tableName . '_' . $columnName);
+                $p3 = $this->quote($tableName . '_' . $columnName . '_seq');
+                $p4 = $this->quote($tableName . '_' . $columnName . '_def');
                 if ($newColumn->getPk()) {
                     return "ALTER TABLE $p1 ADD CONSTRAINT $p4 DEFAULT NEXT VALUE FOR $p3 FOR $p2";
                 } else {
@@ -2287,15 +2277,17 @@ class GenericDefinition
         $fields = [];
         $constraints = [];
         foreach ($newTable->getColumnNames() as $columnName) {
+            $pkColumn = $this->getPrimaryKey($tableName);
             $newColumn = $newTable->getColumn($columnName);
             $f1 = $this->quote($columnName);
             $f2 = $this->getColumnType($newColumn, false);
             $f3 = $this->quote($tableName . '_' . $columnName . '_fkey');
             $f4 = $this->quote($newColumn->getFk());
             $f5 = $this->quote($this->getPrimaryKey($newColumn->getFk()));
+            $f6 = $this->quote($tableName . '_' . $pkColumn . '_pkey');
             $fields[] = "$f1 $f2";
             if ($newColumn->getPk()) {
-                $constraints[] = "PRIMARY KEY ($f1)";
+                $constraints[] = "CONSTRAINT $f6 PRIMARY KEY ($f1)";
             }
             if ($newColumn->getFk()) {
                 $constraints[] = "CONSTRAINT $f3 FOREIGN KEY ($f1) REFERENCES $f4 ($f5)";
@@ -2312,14 +2304,26 @@ class GenericDefinition
         $p2 = $this->quote($newColumn->getName());
         $p3 = $this->getColumnType($newColumn, false);
 
-        return "ALTER TABLE $p1 ADD COLUMN $p2 $p3";
+        switch ($this->driver) {
+            case 'mysql':
+            case 'pgsql':
+                return "ALTER TABLE $p1 ADD COLUMN $p2 $p3";
+            case 'sqlsrv':
+                return "ALTER TABLE $p1 ADD $p2 $p3";
+        }
     }
 
     private function getRemoveTableSQL(String $tableName): String
     {
         $p1 = $this->quote($tableName);
 
-        return "DROP TABLE $p1 CASCADE;";
+        switch ($this->driver) {
+            case 'mysql':
+            case 'pgsql':
+                return "DROP TABLE $p1 CASCADE;";
+            case 'sqlsrv':
+                return "DROP TABLE $p1;";
+        }
     }
 
     private function getRemoveColumnSQL(String $tableName, String $columnName): String
@@ -2327,7 +2331,13 @@ class GenericDefinition
         $p1 = $this->quote($tableName);
         $p2 = $this->quote($columnName);
 
-        return "ALTER TABLE $p1 DROP COLUMN $p2 CASCADE;";
+        switch ($this->driver) {
+            case 'mysql':
+            case 'pgsql':
+                return "ALTER TABLE $p1 DROP COLUMN $p2 CASCADE;";
+            case 'sqlsrv':
+                return "ALTER TABLE $p1 DROP COLUMN $p2;";
+        }
     }
 
     public function renameTable(String $tableName, String $newTableName)
@@ -2609,9 +2619,7 @@ class TypeConverter
             'timestamp_with_timezone' => 'timestamp',
         ],
         'mysql' => [
-            'tinyint(1)' => 'boolean',
-            'bit(0)' => 'boolean',
-            'bit(1)' => 'boolean',
+            'bit' => 'boolean',
             'tinyblob' => 'blob',
             'mediumblob' => 'blob',
             'longblob' => 'blob',
@@ -2624,6 +2632,7 @@ class TypeConverter
             'polygon' => 'geometry',
             'point' => 'geometry',
             'datetime' => 'timestamp',
+            'year' => 'integer',
             'enum' => 'varchar',
             'json' => 'clob',
         ],
@@ -2814,16 +2823,18 @@ class SimpleRouter implements Router
     private $responder;
     private $cache;
     private $ttl;
+    private $debug;
     private $registration;
     private $routes;
     private $routeHandlers;
     private $middlewares;
 
-    public function __construct(Responder $responder, Cache $cache, int $ttl)
+    public function __construct(Responder $responder, Cache $cache, int $ttl, bool $debug)
     {
         $this->responder = $responder;
         $this->cache = $cache;
         $this->ttl = $ttl;
+        $this->debug = $debug;
         $this->registration = true;
         $this->routes = $this->loadPathTree();
         $this->routeHandlers = [];
@@ -2891,7 +2902,23 @@ class SimpleRouter implements Router
         if (count($routeNumbers) == 0) {
             return $this->responder->error(ErrorCode::ROUTE_NOT_FOUND, $request->getPath());
         }
-        return call_user_func($this->routeHandlers[$routeNumbers[0]], $request);
+        try {
+            $response = call_user_func($this->routeHandlers[$routeNumbers[0]], $request);
+        } catch (\PDOException $e) {
+            if (strpos(strtolower($e->getMessage()), 'duplicate') !== false) {
+                $response = $this->responder->error(ErrorCode::DUPLICATE_KEY_EXCEPTION, '');
+            } elseif (strpos(strtolower($e->getMessage()), 'default value') !== false) {
+                $response = $this->responder->error(ErrorCode::DATA_INTEGRITY_VIOLATION, '');
+            } elseif (strpos(strtolower($e->getMessage()), 'allow nulls') !== false) {
+                $response = $this->responder->error(ErrorCode::DATA_INTEGRITY_VIOLATION, '');
+            } elseif (strpos(strtolower($e->getMessage()), 'constraint') !== false) {
+                $response = $this->responder->error(ErrorCode::DATA_INTEGRITY_VIOLATION, '');
+            }
+            if ($this->debug) {
+                $response->addExceptionHeaders($e);
+            }
+        }
+        return $response;
     }
 
 }
@@ -3237,6 +3264,110 @@ class FirewallMiddleware extends Middleware
     }
 }
 
+// file: src/Tqdev/PhpCrudApi/Middleware/IpAddressMiddleware.php
+
+class IpAddressMiddleware extends Middleware
+{
+    private $reflection;
+
+    public function __construct(Router $router, Responder $responder, array $properties, ReflectionService $reflection)
+    {
+        parent::__construct($router, $responder, $properties);
+        $this->reflection = $reflection;
+        $this->utils = new RequestUtils($reflection);
+    }
+
+    private function callHandler($record, String $operation, ReflectedTable $table) /*: object */
+    {
+        $context = (array) $record;
+        $columnNames = $this->getProperty('columns', '');
+        if ($columnNames) {
+            foreach (explode(',', $columnNames) as $columnName) {
+                if ($table->hasColumn($columnName)) {
+                    if ($operation == 'create') {
+                        $context[$columnName] = $_SERVER['REMOTE_ADDR'];
+                    } else {
+                        unset($context[$columnName]);
+                    }
+                }
+            }
+        }
+        return (object) $context;
+    }
+
+    public function handle(Request $request): Response
+    {
+        $operation = $this->utils->getOperation($request);
+        if (in_array($operation, ['create', 'update', 'increment'])) {
+            $tableNames = $this->getProperty('tables', '');
+            $tableName = $request->getPathSegment(2);
+            if (!$tableNames || in_array($tableName, explode(',', $tableNames))) {
+                if ($this->reflection->hasTable($tableName)) {
+                    $record = $request->getBody();
+                    if ($record !== null) {
+                        $table = $this->reflection->getTable($tableName);
+                        if (is_array($record)) {
+                            foreach ($record as &$r) {
+                                $r = $this->callHandler($r, $operation, $table);
+                            }
+                        } else {
+                            $record = $this->callHandler($record, $operation, $table);
+                        }
+                        $request->setBody($record);
+                    }
+                }
+            }
+        }
+        return $this->next->handle($request);
+    }
+}
+
+// file: src/Tqdev/PhpCrudApi/Middleware/JoinLimitsMiddleware.php
+
+class JoinLimitsMiddleware extends Middleware
+{
+    private $reflection;
+
+    public function __construct(Router $router, Responder $responder, array $properties, ReflectionService $reflection)
+    {
+        parent::__construct($router, $responder, $properties);
+        $this->reflection = $reflection;
+        $this->utils = new RequestUtils($reflection);
+    }
+
+    public function handle(Request $request): Response
+    {
+        $operation = $this->utils->getOperation($request);
+        $params = $request->getParams();
+        if (in_array($operation, ['read', 'list']) && isset($params['join'])) {
+            $maxDepth = (int) $this->getProperty('depth', '3');
+            $maxTables = (int) $this->getProperty('tables', '10');
+            $maxRecords = (int) $this->getProperty('records', '1000');
+            $tableCount = 0;
+            $joinPaths = array();
+            for ($i = 0; $i < count($params['join']); $i++) {
+                $joinPath = array();
+                $tables = explode(',', $params['join'][$i]);
+                for ($depth = 0; $depth < min($maxDepth, count($tables)); $depth++) {
+                    array_push($joinPath, $tables[$depth]);
+                    $tableCount += 1;
+                    if ($tableCount == $maxTables) {
+                        break;
+                    }
+                }
+                array_push($joinPaths, implode(',', $joinPath));
+                if ($tableCount == $maxTables) {
+                    break;
+                }
+            }
+            $params['join'] = $joinPaths;
+            $request->setParams($params);
+            VariableStore::set("joinLimits.maxRecords", $maxRecords);
+        }
+        return $this->next->handle($request);
+    }
+}
+
 // file: src/Tqdev/PhpCrudApi/Middleware/JwtAuthMiddleware.php
 
 class JwtAuthMiddleware extends Middleware
@@ -3462,6 +3593,47 @@ class MultiTenancyMiddleware extends Middleware
     }
 }
 
+// file: src/Tqdev/PhpCrudApi/Middleware/PageLimitsMiddleware.php
+
+class PageLimitsMiddleware extends Middleware
+{
+    private $reflection;
+
+    public function __construct(Router $router, Responder $responder, array $properties, ReflectionService $reflection)
+    {
+        parent::__construct($router, $responder, $properties);
+        $this->reflection = $reflection;
+        $this->utils = new RequestUtils($reflection);
+    }
+
+    public function handle(Request $request): Response
+    {
+        $operation = $this->utils->getOperation($request);
+        if ($operation == 'list') {
+            $params = $request->getParams();
+            $maxPage = (int) $this->getProperty('pages', '100');
+            if (isset($params['page']) && $params['page'] && $maxPage > 0) {
+                if (strpos($params['page'][0], ',') === false) {
+                    $page = $params['page'][0];
+                } else {
+                    list($page, $size) = explode(',', $params['page'][0], 2);
+                }
+                if ($page > $maxPage) {
+                    return $this->responder->error(ErrorCode::PAGINATION_FORBIDDEN, '');
+                }
+            }
+            $maxSize = (int) $this->getProperty('records', '1000');
+            if (!isset($params['size']) || !$params['size'] && $maxSize > 0) {
+                $params['size'] = array($maxSize);
+            } else {
+                $params['size'] = array(min($params['size'][0], $maxSize));
+            }
+            $request->setParams($params);
+        }
+        return $this->next->handle($request);
+    }
+}
+
 // file: src/Tqdev/PhpCrudApi/Middleware/SanitationMiddleware.php
 
 class SanitationMiddleware extends Middleware
@@ -3638,6 +3810,7 @@ class OpenApiBuilder
         'decimal' => ['type' => 'string'],
         'float' => ['type' => 'number', 'format' => 'float'],
         'double' => ['type' => 'number', 'format' => 'double'],
+        'date' => ['type' => 'string', 'format' => 'date'],
         'time' => ['type' => 'string', 'format' => 'date-time'],
         'timestamp' => ['type' => 'string', 'format' => 'date-time'],
         'geometry' => ['type' => 'string'],
@@ -3650,9 +3823,41 @@ class OpenApiBuilder
         $this->openapi = new OpenApiDefinition($base);
     }
 
+    private function getServerUrl(): String
+    {
+        $protocol = @$_SERVER['HTTP_X_FORWARDED_PROTO'] ?: @$_SERVER['REQUEST_SCHEME'] ?: ((isset($_SERVER["HTTPS"]) && $_SERVER["HTTPS"] == "on") ? "https" : "http");
+        $port = @intval($_SERVER['HTTP_X_FORWARDED_PORT']) ?: @intval($_SERVER["SERVER_PORT"]) ?: (($protocol === 'https') ? 443 : 80);
+        $host = @explode(":", $_SERVER['HTTP_HOST'])[0] ?: @$_SERVER['SERVER_NAME'] ?: @$_SERVER['SERVER_ADDR'];
+        $port = ($protocol === 'https' && $port === 443) || ($protocol === 'http' && $port === 80) ? '' : ':' . $port;
+        $path = @trim(substr($_SERVER['REQUEST_URI'], 0, strpos($_SERVER['REQUEST_URI'], '/openapi')), '/');
+        return sprintf('%s://%s%s/%s', $protocol, $host, $port, $path);
+    }
+
+    private function getAllTableReferences(): array
+    {
+        $tableReferences = array();
+        foreach ($this->reflection->getTableNames() as $tableName) {
+            $table = $this->reflection->getTable($tableName);
+            foreach ($table->getColumnNames() as $columnName) {
+                $column = $table->getColumn($columnName);
+                $referencedTableName = $column->getFk();
+                if ($referencedTableName) {
+                    if (!isset($tableReferences[$referencedTableName])) {
+                        $tableReferences[$referencedTableName] = array();
+                    }
+                    $tableReferences[$referencedTableName][] = "$tableName.$columnName";
+                }
+            }
+        }
+        return $tableReferences;
+    }
+
     public function build(): OpenApiDefinition
     {
         $this->openapi->set("openapi", "3.0.0");
+        if (!$this->openapi->has("servers") && isset($_SERVER['REQUEST_URI'])) {
+            $this->openapi->set("servers|0|url", $this->getServerUrl());
+        }
         $tableNames = $this->reflection->getTableNames();
         foreach ($tableNames as $tableName) {
             $this->setPath($tableName);
@@ -3666,8 +3871,10 @@ class OpenApiBuilder
         $this->openapi->set("components|responses|rows_affected|description", "number of rows affected (integer)");
         $this->openapi->set("components|responses|rows_affected|content|application/json|schema|type", "integer");
         $this->openapi->set("components|responses|rows_affected|content|application/json|schema|format", "int64");
+        $tableReferences = $this->getAllTableReferences();
         foreach ($tableNames as $tableName) {
-            $this->setComponentSchema($tableName);
+            $references = isset($tableReferences[$tableName]) ? $tableReferences[$tableName] : array();
+            $this->setComponentSchema($tableName, $references);
             $this->setComponentResponse($tableName);
             $this->setComponentRequestBody($tableName);
         }
@@ -3712,11 +3919,22 @@ class OpenApiBuilder
             if (!$this->isOperationOnTableAllowed($operation, $tableName)) {
                 continue;
             }
+            $parameters = [];
             if (in_array($operation, ['list', 'create'])) {
                 $path = sprintf('/records/%s', $tableName);
+                if ($operation == 'list') {
+                    $parameters = ['filter', 'include', 'exclude', 'order', 'size', 'page', 'join'];
+                }
             } else {
                 $path = sprintf('/records/%s/{%s}', $tableName, $pkName);
-                $this->openapi->set("paths|$path|$method|parameters|0|\$ref", "#/components/parameters/pk");
+                if ($operation == 'read') {
+                    $parameters = ['pk', 'include', 'exclude', 'join'];
+                } else {
+                    $parameters = ['pk'];
+                }
+            }
+            foreach ($parameters as $p => $parameter) {
+                $this->openapi->set("paths|$path|$method|parameters|$p|\$ref", "#/components/parameters/$parameter");
             }
             if (in_array($operation, ['create', 'update', 'increment'])) {
                 $this->openapi->set("paths|$path|$method|requestBody|\$ref", "#/components/requestBodies/$operation-" . urlencode($tableName));
@@ -3746,7 +3964,7 @@ class OpenApiBuilder
         }
     }
 
-    private function setComponentSchema(String $tableName) /*: void*/
+    private function setComponentSchema(String $tableName, array $references) /*: void*/
     {
         $table = $this->reflection->getTable($tableName);
         $type = $table->getType();
@@ -3783,6 +4001,14 @@ class OpenApiBuilder
                 $properties = $this->types[$column->getType()];
                 foreach ($properties as $key => $value) {
                     $this->openapi->set("$prefix|properties|$columnName|$key", $value);
+                }
+                if ($column->getPk()) {
+                    $this->openapi->set("$prefix|properties|$columnName|x-primary-key", true);
+                    $this->openapi->set("$prefix|properties|$columnName|x-referenced", $references);
+                }
+                $fk = $column->getFk();
+                if ($fk) {
+                    $this->openapi->set("$prefix|properties|$columnName|x-references", $fk);
                 }
             }
         }
@@ -3837,6 +4063,51 @@ class OpenApiBuilder
         $this->openapi->set("components|parameters|pk|schema|type", "string");
         $this->openapi->set("components|parameters|pk|description", "primary key value");
         $this->openapi->set("components|parameters|pk|required", true);
+
+        $this->openapi->set("components|parameters|filter|name", "filter");
+        $this->openapi->set("components|parameters|filter|in", "query");
+        $this->openapi->set("components|parameters|filter|schema|type", "array");
+        $this->openapi->set("components|parameters|filter|schema|items|type", "string");
+        $this->openapi->set("components|parameters|filter|description", "Filters to be applied. Each filter consists of a column, an operator and a value (comma separated). Example: id,eq,1");
+        $this->openapi->set("components|parameters|filter|required", false);
+
+        $this->openapi->set("components|parameters|include|name", "include");
+        $this->openapi->set("components|parameters|include|in", "query");
+        $this->openapi->set("components|parameters|include|schema|type", "string");
+        $this->openapi->set("components|parameters|include|description", "Columns you want to include in the output (comma separated). Example: posts.*,categories.name");
+        $this->openapi->set("components|parameters|include|required", false);
+
+        $this->openapi->set("components|parameters|exclude|name", "exclude");
+        $this->openapi->set("components|parameters|exclude|in", "query");
+        $this->openapi->set("components|parameters|exclude|schema|type", "string");
+        $this->openapi->set("components|parameters|exclude|description", "Columns you want to exclude from the output (comma separated). Example: posts.content");
+        $this->openapi->set("components|parameters|exclude|required", false);
+
+        $this->openapi->set("components|parameters|order|name", "order");
+        $this->openapi->set("components|parameters|order|in", "query");
+        $this->openapi->set("components|parameters|order|schema|type", "array");
+        $this->openapi->set("components|parameters|order|schema|items|type", "string");
+        $this->openapi->set("components|parameters|order|description", "Column you want to sort on and the sort direction (comma separated). Example: id,desc");
+        $this->openapi->set("components|parameters|order|required", false);
+
+        $this->openapi->set("components|parameters|size|name", "size");
+        $this->openapi->set("components|parameters|size|in", "query");
+        $this->openapi->set("components|parameters|size|schema|type", "string");
+        $this->openapi->set("components|parameters|size|description", "Maximum number of results (for top lists). Example: 10");
+        $this->openapi->set("components|parameters|size|required", false);
+
+        $this->openapi->set("components|parameters|page|name", "page");
+        $this->openapi->set("components|parameters|page|in", "query");
+        $this->openapi->set("components|parameters|page|schema|type", "string");
+        $this->openapi->set("components|parameters|page|description", "Page number and page size (comma separated). Example: 1,10");
+        $this->openapi->set("components|parameters|page|required", false);
+
+        $this->openapi->set("components|parameters|join|name", "join");
+        $this->openapi->set("components|parameters|join|in", "query");
+        $this->openapi->set("components|parameters|join|schema|type", "array");
+        $this->openapi->set("components|parameters|join|schema|items|type", "string");
+        $this->openapi->set("components|parameters|join|description", "Paths (comma separated) to related entities that you want to include. Example: comments,users");
+        $this->openapi->set("components|parameters|join|required", false);
     }
 
     private function setTag(int $index, String $tableName) /*: void*/
@@ -3869,6 +4140,20 @@ class OpenApiDefinition implements \JsonSerializable
             $current = &$current[$part];
         }
         $current = $value;
+    }
+
+    public function has(String $path): bool
+    {
+        $parts = explode('|', trim($path, '|'));
+        $current = &$this->root;
+        while (count($parts) > 0) {
+            $part = array_shift($parts);
+            if (!isset($current[$part])) {
+                return false;
+            }
+            $current = &$current[$part];
+        }
+        return true;
     }
 
     public function jsonSerialize()
@@ -3991,7 +4276,7 @@ abstract class Condition
         $condition = new NoCondition();
         $parts = explode(',', $value, 3);
         if (count($parts) < 2) {
-            return null;
+            return $condition;
         }
         if (count($parts) < 3) {
             $parts[2] = '';
@@ -4280,7 +4565,7 @@ class ErrorCode
     const TEMPORARY_OR_PERMANENTLY_BLOCKED = 1016;
     const BAD_OR_MISSING_XSRF_TOKEN = 1017;
     const ONLY_AJAX_REQUESTS_ALLOWED = 1018;
-    const FILE_UPLOAD_FAILED = 1019;
+    const PAGINATION_FORBIDDEN = 1019;
 
     private $values = [
         9999 => ["%s", Response::INTERNAL_SERVER_ERROR],
@@ -4303,7 +4588,7 @@ class ErrorCode
         1016 => ["Temporary or permanently blocked", Response::FORBIDDEN],
         1017 => ["Bad or missing XSRF token", Response::FORBIDDEN],
         1018 => ["Only AJAX requests allowed for '%s'", Response::FORBIDDEN],
-        1019 => ["File upload failed for '%s'", Response::UNPROCESSABLE_ENTITY],
+        1019 => ["Pagination forbidden", Response::FORBIDDEN],
     ];
 
     public function __construct(int $code)
@@ -4344,7 +4629,7 @@ class FilterInfo
         if (isset($params[$key])) {
             foreach ($params[$key] as $filter) {
                 $condition = Condition::fromString($table, $filter);
-                if ($condition != null) {
+                if (($condition instanceof NoCondition) == false) {
                     $conditions->put($path, $condition);
                 }
             }
@@ -4422,14 +4707,20 @@ class OrderingInfo
             }
         }
         if (count($fields) == 0) {
-            $pk = $table->getPk();
-            if ($pk) {
-                $fields[] = [$pk->getName(), 'ASC'];
-            } else {
-                foreach ($table->getColumnNames() as $columnName) {
-                    $fields[] = [$columnName, 'ASC'];
-                }
+            return $this->getDefaultColumnOrdering($table);
+        }
+        return $fields;
+    }
 
+    public function getDefaultColumnOrdering(ReflectedTable $table): array
+    {
+        $fields = array();
+        $pk = $table->getPk();
+        if ($pk) {
+            $fields[] = [$pk->getName(), 'ASC'];
+        } else {
+            foreach ($table->getColumnNames() as $columnName) {
+                $fields[] = [$columnName, 'ASC'];
             }
         }
         return $fields;
@@ -4462,7 +4753,7 @@ class PaginationInfo
         return $offset;
     }
 
-    public function getPageSize(array $params): int
+    private function getPageSize(array $params): int
     {
         $pageSize = $this->DEFAULT_PAGE_SIZE;
         if (isset($params['page'])) {
@@ -4485,6 +4776,23 @@ class PaginationInfo
             }
         }
         return $numberOfRows;
+    }
+
+    public function getPageLimit(array $params): int
+    {
+        $pageLimit = -1;
+        if ($this->hasPage($params)) {
+            $pageLimit = $this->getPageSize($params);
+        }
+        $resultSize = $this->getResultSize($params);
+        if ($resultSize >= 0) {
+            if ($pageLimit >= 0) {
+                $pageLimit = min($pageLimit, $resultSize);
+            } else {
+                $pageLimit = $resultSize;
+            }
+        }
+        return $pageLimit;
     }
 
 }
@@ -4673,11 +4981,11 @@ class RecordService
         $columnOrdering = $this->ordering->getColumnOrdering($table, $params);
         if (!$this->pagination->hasPage($params)) {
             $offset = 0;
-            $limit = $this->pagination->getResultSize($params);
+            $limit = $this->pagination->getPageLimit($params);
             $count = 0;
         } else {
             $offset = $this->pagination->getPageOffset($params);
-            $limit = $this->pagination->getPageSize($params);
+            $limit = $this->pagination->getPageLimit($params);
             $count = $this->db->selectCount($table, $condition);
         }
         $records = $this->db->selectAll($table, $columnNames, $condition, $columnOrdering, $offset, $limit);
@@ -4697,6 +5005,7 @@ class RelationJoiner
     public function __construct(ReflectionService $reflection, ColumnIncluder $columns)
     {
         $this->reflection = $reflection;
+        $this->ordering = new OrderingInfo();
         $this->columns = $columns;
     }
 
@@ -4774,10 +5083,14 @@ class RelationJoiner
         foreach ($joins->getKeys() as $t2Name) {
 
             $t2 = $this->reflection->getTable($t2Name);
-
+            
             $belongsTo = count($t1->getFksTo($t2->getName())) > 0;
             $hasMany = count($t2->getFksTo($t1->getName())) > 0;
-            $t3 = $this->hasAndBelongsToMany($t1, $t2);
+            if (!$belongsTo && !$hasMany) {
+                $t3 = $this->hasAndBelongsToMany($t1, $t2);
+            } else {
+                $t3 = null;
+            }
             $hasAndBelongsToMany = ($t3 != null);
 
             $newRecords = array();
@@ -4788,11 +5101,11 @@ class RelationJoiner
             if ($belongsTo) {
                 $fkValues = $this->getFkEmptyValues($t1, $t2, $records);
                 $this->addFkRecords($t2, $fkValues, $params, $db, $newRecords);
-            }
+            } 
             if ($hasMany) {
                 $pkValues = $this->getPkEmptyValues($t1, $records);
                 $this->addPkRecords($t1, $t2, $pkValues, $params, $db, $newRecords);
-            }
+            } 
             if ($hasAndBelongsToMany) {
                 $habtmValues = $this->getHabtmEmptyValues($t1, $t2, $t3, $db, $records);
                 $this->addFkRecords($t2, $habtmValues->fkValues, $params, $db, $newRecords);
@@ -4803,14 +5116,14 @@ class RelationJoiner
             if ($fkValues != null) {
                 $this->fillFkValues($t2, $newRecords, $fkValues);
                 $this->setFkValues($t1, $t2, $records, $fkValues);
-            }
+            } 
             if ($pkValues != null) {
                 $this->fillPkValues($t1, $t2, $newRecords, $pkValues);
                 $this->setPkValues($t1, $t2, $records, $pkValues);
-            }
+            } 
             if ($habtmValues != null) {
                 $this->fillFkValues($t2, $newRecords, $habtmValues->fkValues);
-                $this->setHabtmValues($t1, $t3, $records, $habtmValues);
+                $this->setHabtmValues($t1, $t2, $records, $habtmValues);
             }
         }
     }
@@ -4885,7 +5198,12 @@ class RelationJoiner
             $conditions[] = new ColumnCondition($fk, 'in', $pkValueKeys);
         }
         $condition = OrCondition::fromArray($conditions);
-        foreach ($db->selectAllUnordered($t2, $columnNames, $condition) as $record) {
+        $columnOrdering = array();
+        $limit = VariableStore::get("joinLimits.maxRecords") ?: -1;
+        if ($limit != -1) {
+            $columnOrdering = $this->ordering->getDefaultColumnOrdering($t2);
+        }
+        foreach ($db->selectAll($t2, $columnNames, $condition, $columnOrdering, 0, $limit) as $record) {
             $records[] = $record;
         }
     }
@@ -4930,8 +5248,13 @@ class RelationJoiner
 
         $pkIds = implode(',', array_keys($pkValues));
         $condition = new ColumnCondition($t3->getColumn($fk1Name), 'in', $pkIds);
+        $columnOrdering = array();
 
-        $records = $db->selectAllUnordered($t3, $columnNames, $condition);
+        $limit = VariableStore::get("joinLimits.maxRecords") ?: -1;
+        if ($limit != -1) {
+            $columnOrdering = $this->ordering->getDefaultColumnOrdering($t3);
+        }
+        $records = $db->selectAll($t3, $columnNames, $condition, $columnOrdering, 0, $limit);
         foreach ($records as $record) {
             $val1 = $record[$fk1Name];
             $val2 = $record[$fk2Name];
@@ -4942,10 +5265,10 @@ class RelationJoiner
         return new HabtmValues($pkValues, $fkValues);
     }
 
-    private function setHabtmValues(ReflectedTable $t1, ReflectedTable $t3, array &$records, HabtmValues $habtmValues) /*: void*/
+    private function setHabtmValues(ReflectedTable $t1, ReflectedTable $t2, array &$records, HabtmValues $habtmValues) /*: void*/
     {
         $pkName = $t1->getPk()->getName();
-        $t3Name = $t3->getName();
+        $t2Name = $t2->getName();
         foreach ($records as $i => $record) {
             $key = $record[$pkName];
             $val = array();
@@ -4953,7 +5276,7 @@ class RelationJoiner
             foreach ($fks as $fk) {
                 $val[] = $habtmValues->fkValues[$fk];
             }
-            $records[$i][$t3Name] = $val;
+            $records[$i][$t2Name] = $val;
         }
     }
 }
@@ -5050,7 +5373,7 @@ class Api
         $cache = CacheFactory::create($config);
         $reflection = new ReflectionService($db, $cache, $config->getCacheTime());
         $responder = new Responder();
-        $router = new SimpleRouter($responder, $cache, $config->getCacheTime());
+        $router = new SimpleRouter($responder, $cache, $config->getCacheTime(), $config->getDebug());
         foreach ($config->getMiddlewares() as $middleware => $properties) {
             switch ($middleware) {
                 case 'cors':
@@ -5068,6 +5391,9 @@ class Api
                 case 'validation':
                     new ValidationMiddleware($router, $responder, $properties, $reflection);
                     break;
+                case 'ipAddress':
+                    new IpAddressMiddleware($router, $responder, $properties, $reflection);
+                    break;
                 case 'sanitation':
                     new SanitationMiddleware($router, $responder, $properties, $reflection);
                     break;
@@ -5079,6 +5405,12 @@ class Api
                     break;
                 case 'xsrf':
                     new XsrfMiddleware($router, $responder, $properties);
+                    break;
+                case 'pageLimits':
+                    new PageLimitsMiddleware($router, $responder, $properties, $reflection);
+                    break;
+                case 'joinLimits':
+                    new JoinLimitsMiddleware($router, $responder, $properties, $reflection);
                     break;
                 case 'customization':
                     new CustomizationMiddleware($router, $responder, $properties, $reflection);
@@ -5115,23 +5447,9 @@ class Api
         try {
             $response = $this->router->route($request);
         } catch (\Throwable $e) {
-            if ($e instanceof \PDOException) {
-                if (strpos(strtolower($e->getMessage()), 'duplicate') !== false) {
-                    return $this->responder->error(ErrorCode::DUPLICATE_KEY_EXCEPTION, '');
-                }
-                if (strpos(strtolower($e->getMessage()), 'default value') !== false) {
-                    return $this->responder->error(ErrorCode::DATA_INTEGRITY_VIOLATION, '');
-                }
-                if (strpos(strtolower($e->getMessage()), 'allow nulls') !== false) {
-                    return $this->responder->error(ErrorCode::DATA_INTEGRITY_VIOLATION, '');
-                }
-                if (strpos(strtolower($e->getMessage()), 'constraint') !== false) {
-                    return $this->responder->error(ErrorCode::DATA_INTEGRITY_VIOLATION, '');
-                }
-            }
             $response = $this->responder->error(ErrorCode::ERROR_NOT_FOUND, $e->getMessage());
             if ($this->debug) {
-                $response->addHeader('X-Debug-Info', 'Exception in ' . $e->getFile() . ' on line ' . $e->getLine());
+                $response->addExceptionHeaders($e);
             }
         }
         return $response;
@@ -5426,6 +5744,11 @@ class Request
         return $this->params;
     }
 
+    public function setParams(array $params) /*: void*/
+    {
+        $this->params = $params;
+    }
+
     public function getBody() /*: ?array*/
     {
         return $this->body;
@@ -5550,6 +5873,13 @@ class Response
             header("$key: $value");
         }
         echo $this->getBody();
+    }
+
+    public function addExceptionHeaders(\Throwable $e)
+    {
+        $this->addHeader('X-Exception-Name', get_class($e));
+        $this->addHeader('X-Exception-Message', $e->getMessage());
+        $this->addHeader('X-Exception-File', $e->getFile() . ':' . $e->getLine());
     }
 
     public function __toString(): String

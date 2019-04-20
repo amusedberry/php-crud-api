@@ -1,17 +1,15 @@
-# PHP-CRUD-API (v2)
+# PHP-CRUD-API
 
-Single file PHP 7 script that adds a REST API to a MySQL 5.5 InnoDB database. PostgreSQL 9.1 and MS SQL Server 2012 are fully supported. 
+Single file PHP 7 script that adds a REST API to a MySQL 5.6 InnoDB database. PostgreSQL 9.1 and MS SQL Server 2012 are fully supported. 
 
 NB: This is the [TreeQL](https://treeql.org) reference implementation in PHP.
 
-NB: Are you looking for v1? It is here: https://github.com/mevdschee/php-crud-api/tree/v1
-
 Related projects:
 
-  - [PHP-API-AUTH](https://github.com/mevdschee/php-api-auth): Single file PHP script that is an authentication provider for PHP-CRUD-API (v2)
+  - [PHP-API-AUTH](https://github.com/mevdschee/php-api-auth): Single file PHP script that is an authentication provider for PHP-CRUD-API
   - [PHP-SP-API](https://github.com/mevdschee/php-sp-api): Single file PHP script that adds a REST API to a SQL database.
-  - [PHP-CRUD-UI](https://github.com/mevdschee/PHP-crud-ui): Single file PHP script that adds a UI to a PHP-CRUD-API (v1) project.
-  - [VUE-CRUD-UI](https://github.com/nlware/vue-crud-ui): Single file Vue.js script that adds a UI to a PHP-CRUD-API (v1) project.
+  - [PHP-CRUD-UI](https://github.com/mevdschee/PHP-crud-ui): Single file PHP script that adds a UI to a PHP-CRUD-API project.
+  - [VUE-CRUD-UI](https://github.com/nlware/vue-crud-ui): Single file Vue.js script that adds a UI to a PHP-CRUD-API project.
   
 There are also ports of this script in:
 
@@ -32,10 +30,6 @@ There are also proof-of-concept ports of this script that only support basic RES
   - MySQL 5.6 / MariaDB 10.0 or higher for spatial features in MySQL
   - PostGIS 2.0 or higher for spatial features in PostgreSQL 9.1 or higher
   - SQL Server 2012 or higher (2017 for Linux support)
-
-## Known issues
-
-- Seeing integers as strings? Make sure to enable the `nd_pdo_mysql` extension and disable `pdo_mysql`.
 
 ## Installation
 
@@ -91,7 +85,7 @@ NB: The script appends the classes in alphabetical order (directories first).
 
 ## Limitations
 
-These limitation were also present in v1:
+These limitation and constrains apply:
 
   - Primary keys should either be auto-increment (from 1 to 2^53) or UUID
   - Composite primary or foreign keys are not supported
@@ -101,38 +95,30 @@ These limitation were also present in v1:
   
 ## Features
 
-These features match features in v1 (see branch "v1"):
+The following features are supported:
 
-  - [x] Single PHP file, easy to deploy.
-  - [x] Very little code, easy to adapt and maintain
-  - [ ] ~~Streaming data, low memory footprint~~
-  - [x] Supports POST variables as input (x-www-form-urlencoded)
-  - [x] Supports a JSON object as input
-  - [x] Supports a JSON array as input (batch insert)
-  - [ ] ~~Supports file upload from web forms (multipart/form-data)~~
-  - [ ] ~~Condensed JSON output: first row contains field names~~
-  - [x] Sanitize and validate input using callbacks
-  - [x] Permission system for databases, tables, columns and records
-  - [x] Multi-tenant database layouts are supported
-  - [x] Multi-domain CORS support for cross-domain requests
-  - [x] Support for reading joined results from multiple tables
-  - [x] Search support on multiple criteria
-  - [x] Pagination, seeking, sorting and column selection
-  - [x] Relation detection with nested results (belongsTo, hasMany and HABTM)
-  - [ ] ~~Relation "transforms" (of condensed JSON) for PHP and JavaScript~~
-  - [x] Atomic increment support via PATCH (for counters)
-  - [x] Binary fields supported with base64 encoding
-  - [x] Spatial/GIS fields and filters supported with WKT
-  - [ ] ~~Unstructured data support through JSON/JSONB~~
-  - [x] Generate API documentation using OpenAPI tools
-  - [x] Authentication via JWT token or username/password
-  - [ ] ~~SQLite support~~
-
- NB: No checkmark means: not yet implemented. Striken means: will not be implemented.
+  - Single PHP file, easy to deploy.
+  - Very little code, easy to adapt and maintain
+  - Supports POST variables as input (x-www-form-urlencoded)
+  - Supports a JSON object as input
+  - Supports a JSON array as input (batch insert)
+  - Sanitize and validate input using callbacks
+  - Permission system for databases, tables, columns and records
+  - Multi-tenant database layouts are supported
+  - Multi-domain CORS support for cross-domain requests
+  - Support for reading joined results from multiple tables
+  - Search support on multiple criteria
+  - Pagination, sorting, top N list and column selection
+  - Relation detection with nested results (belongsTo, hasMany and HABTM)
+  - Atomic increment support via PATCH (for counters)
+  - Binary fields supported with base64 encoding
+  - Spatial/GIS fields and filters supported with WKT
+  - Generate API documentation using OpenAPI tools
+  - Authentication via JWT token or username/password
 
 ### Extra Features
 
-These features are new and were not included in v1.
+These features are new in v2 and were not included in v1:
 
   - Does not reflect on every request (better performance)
   - Complex filters (with both "and" & "or") are supported
@@ -143,6 +129,20 @@ These features are new and were not included in v1.
   - Error reporting in JSON with corresponding HTTP status
   - Support for basic authentication and via auth provider (JWT)
   - Support for basic firewall functionality
+  - Prevent database scraping using list limits
+
+### Dropped features
+
+The following features of v1 were dropped in v2:
+
+  - ~~Streaming data, low memory footprint~~
+  - ~~Supports file upload from web forms (multipart/form-data)~~
+  - ~~Condensed JSON output: first row contains field names~~
+  - ~~Relation "transforms" (of condensed JSON) for PHP and JavaScript~~
+  - ~~Unstructured data support through JSON/JSONB~~
+  - ~~SQLite support~~
+
+NB: You can find v1 here: https://github.com/mevdschee/php-crud-api/tree/v1
 
 ## Middleware
 
@@ -156,8 +156,11 @@ You can enable the following middleware using the "middlewares" config parameter
 - "basicAuth": Support for "Basic Authentication"
 - "authorization": Restrict access to certain tables or columns
 - "validation": Return input validation errors for custom rules
+- "ipAddress": Fill a protected field with the IP address on create
 - "sanitation": Apply input sanitation on create and update
 - "multiTenancy": Restricts tenants access in a multi-tenant scenario
+- "pageLimits": Restricts list operations to prevent database scraping
+- "joinLimits": Restricts join parameters to prevent database scraping
 - "customization": Provides handlers for request and response customization
 
 The "middlewares" config parameter is a comma separated list of enabled middlewares.
@@ -192,8 +195,15 @@ You can tune the middleware behavior using middleware specific configuration par
 - "authorization.columnHandler": Handler to implement column authorization rules ("")
 - "authorization.recordHandler": Handler to implement record authorization filter rules ("")
 - "validation.handler": Handler to implement validation rules for input values ("")
+- "ipAddress.tables": Tables to search for columns to override with IP address ("")
+- "ipAddress.columns": Columns to protect and override with the IP address on create ("")
 - "sanitation.handler": Handler to implement sanitation rules for input values ("")
 - "multiTenancy.handler": Handler to implement simple multi-tenancy rules ("")
+- "pageLimits.pages": The maximum page number that a list operation allows ("100")
+- "pageLimits.records": The maximum number of records returned by a list operation ("1000")
+- "joinLimits.depth": The maximum depth (length) that is allowed in a join path ("3")
+- "joinLimits.tables": The maximum number of tables that you are allowed to join ("10")
+- "joinLimits.records": The maximum number of records returned for a joined entity ("1000")
 - "customization.beforeHandler": Handler to implement request customization ("")
 - "customization.afterHandler": Handler to implement response customization ("")
 
@@ -201,7 +211,7 @@ If you don't specify these parameters in the configuration, then the default val
 
 ## TreeQL, a pragmatic GraphQL
 
-TreeQL allows you to create a "tree" of JSON objects based on your SQL database structure (relations) and your query.
+[TreeQL](https://treeql.org) allows you to create a "tree" of JSON objects based on your SQL database structure (relations) and your query.
 
 It is loosely based on the REST standard and also inspired by json:api.
 
@@ -405,9 +415,32 @@ Output:
 
 NB: You may sort on multiple fields by using multiple "order" parameters. You can not order on "joined" columns.
 
+### Limit size
+
+The "size" parameter limits the number of returned records. This can be used for top N lists together with the "order" parameter (use descending order).
+
+```
+GET /records/categories?order=id,desc&size=1
+```
+
+Output:
+
+```
+    {
+        "records":[
+            {
+                "id": 3
+                "name": "Web development"
+            }
+        ]
+    }
+```
+
+NB: If you also want to know to the total number of records you may want to use the "page" parameter.
+
 ### Pagination
 
-The "page" parameter holds the requested page. The default page size is 20, but can be adjusted (e.g. to 50):
+The "page" parameter holds the requested page. The default page size is 20, but can be adjusted (e.g. to 50).
 
 ```
 GET /records/categories?order=id&page=1
@@ -432,7 +465,7 @@ Output:
     }
 ```
 
-NB: Pages that are not ordered cannot be paginated.
+NB: Since pages that are not ordered cannot be paginated, pages will be ordered by primary key.
 
 ### Joins
 
@@ -622,7 +655,7 @@ This example sends the signed claims:
       "exp": 1538207635
     }
 
-NB: The JWT implementation only supports the hash based algorithms HS256, HS384 and HS512.
+NB: The JWT implementation only supports the RSA and HMAC based algorithms.
 
 ## Authorizing operations
 
@@ -722,6 +755,24 @@ If your tenants are identified by the "customer_id" column you can use the follo
 
 This construct adds a filter requiring "customer_id" to be "12" to every operation (except for "create").
 It also sets the column "customer_id" on "create" to "12" and removes the column from any other write operation.
+
+### Prevent database scraping
+
+You may use the "joinLimits" and "pageLimits" middleware to prevent database scraping.
+The "joinLimits" middleware limits the table depth, number of tables and number of records returned in a join operation. 
+If you want to allow 5 direct direct joins with a maximum of 25 records each, you can specify:
+
+    'joinLimits.depth' => 1,
+    'joinLimits.tables' => 5,
+    'joinLimits.records' => 25,
+
+The "pageLimits" middleware limits the page number and the number records returned from a list operation. 
+If you want to allow no more than 10 pages with a maximum of 25 records each, you can specify:
+
+    'pageLimits.pages' => 10,
+    'pageLimits.records' => 25,
+
+NB: The maximum number of records is also applied when there is no page number specified in the request.
 
 ### Customization handlers
 
@@ -832,7 +883,7 @@ The following errors may be reported:
 | 1016  | 403 Forbidden              | Temporary or permanently blocked 
 | 1017  | 403 Forbidden              | Bad or missing XSRF token 
 | 1018  | 403 Forbidden              | Only AJAX requests allowed 
-| 1019  | 422 Unprocessable entity   | File upload failed 
+| 1019  | 403 Forbidden              | Pagination Forbidden 
 | 9999  | 500 Internal server error  | Unknown error 
 
 The following JSON structure is used:
@@ -911,8 +962,8 @@ To run the docker tests run "build_all.sh" and "run_all.sh" from the docker dire
     [3/4] Starting SQLServer 2017 ... skipped
     [4/4] Cloning PHP-CRUD-API v2 ... skipped
     ------------------------------------------------
-    mysql: 83 tests ran in 378 ms, 0 failed
-    pgsql: 83 tests ran in 284 ms, 0 failed
+    mysql: 95 tests ran in 2651 ms, 0 failed
+    pgsql: 95 tests ran in 573 ms, 0 failed
     sqlsrv: skipped, driver not loaded
     ================================================
     Ubuntu 16.04 (PHP 7.0)
@@ -922,9 +973,9 @@ To run the docker tests run "build_all.sh" and "run_all.sh" from the docker dire
     [3/4] Starting SQLServer 2017 ... done
     [4/4] Cloning PHP-CRUD-API v2 ... skipped
     ------------------------------------------------
-    mysql: 83 tests ran in 381 ms, 0 failed
-    pgsql: 83 tests ran in 290 ms, 0 failed
-    sqlsrv: 83 tests ran in 4485 ms, 0 failed
+    mysql: 95 tests ran in 2670 ms, 0 failed
+    pgsql: 95 tests ran in 550 ms, 0 failed
+    sqlsrv: 95 tests ran in 6624 ms, 0 failed
     ================================================
     Ubuntu 18.04 (PHP 7.2)
     ================================================
@@ -933,8 +984,8 @@ To run the docker tests run "build_all.sh" and "run_all.sh" from the docker dire
     [3/4] Starting SQLServer 2017 ... skipped
     [4/4] Cloning PHP-CRUD-API v2 ... skipped
     ------------------------------------------------
-    mysql: 83 tests ran in 364 ms, 0 failed
-    pgsql: 83 tests ran in 294 ms, 0 failed
+    mysql: 95 tests ran in 3186 ms, 0 failed
+    pgsql: 95 tests ran in 556 ms, 0 failed
     sqlsrv: skipped, driver not loaded
 
 The above test run (including starting up the databases) takes less than one minute on my machine.
@@ -952,8 +1003,8 @@ The above test run (including starting up the databases) takes less than one min
     [3/4] Starting SQLServer 2017 ... skipped
     [4/4] Cloning PHP-CRUD-API v2 ... skipped
     ------------------------------------------------
-    mysql: 83 tests ran in 364 ms, 0 failed
-    pgsql: 83 tests ran in 294 ms, 0 failed
+    mysql: 95 tests ran in 3186 ms, 0 failed
+    pgsql: 95 tests ran in 556 ms, 0 failed
     sqlsrv: skipped, driver not loaded
     root@b7ab9472e08f:/php-crud-api# 
 

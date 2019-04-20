@@ -52,7 +52,8 @@ CREATE TABLE categories (
 CREATE TABLE comments (
     id bigserial NOT NULL,
     post_id integer NOT NULL,
-    message character varying(255) NOT NULL
+    message character varying(255) NOT NULL,
+    category_id integer NOT NULL    
 );
 
 
@@ -98,7 +99,7 @@ CREATE TABLE users (
     id serial NOT NULL,
     username character varying(255) NOT NULL,
     password character varying(255) NOT NULL,
-    location geometry NULL
+    location geometry
 );
 
 --
@@ -118,8 +119,8 @@ CREATE TABLE countries (
 CREATE TABLE events (
     id serial NOT NULL,
     name character varying(255) NOT NULL,
-    datetime timestamp NOT NULL,
-    visitors integer NOT NULL
+    datetime timestamp,
+    visitors bigint
 );
 
 --
@@ -149,7 +150,8 @@ CREATE TABLE barcodes (
     id serial NOT NULL,
     product_id integer NOT NULL,
     hex character varying(255) NOT NULL,
-    bin bytea NOT NULL
+    bin bytea NOT NULL,
+    ip_address character varying(15)
 );
 
 --
@@ -185,17 +187,18 @@ CREATE TABLE "nopk" (
 
 INSERT INTO "categories" ("name", "icon") VALUES
 ('announcement',	NULL),
-('article',	NULL);
+('article',	NULL),
+('comment',	NULL);
 
 --
 -- Data for Name: comments; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-INSERT INTO "comments" ("post_id", "message") VALUES
-(1,	'great'),
-(1,	'fantastic'),
-(2,	'thank you'),
-(2,	'awesome');
+INSERT INTO "comments" ("post_id", "message", "category_id") VALUES
+(1,	'great', 3),
+(1,	'fantastic', 3),
+(2,	'thank you', 3),
+(2,	'awesome', 3);
 
 --
 -- Data for Name: post_tags; Type: TABLE DATA; Schema: public; Owner: postgres
@@ -257,8 +260,8 @@ INSERT INTO "products" ("name", "price", "properties", "created_at") VALUES
 -- Data for Name: barcodes; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-INSERT INTO "barcodes" ("product_id", "hex", "bin") VALUES
-(1,	'00ff01', E'\\x00ff01');
+INSERT INTO "barcodes" ("product_id", "hex", "bin", "ip_address") VALUES
+(1,	'00ff01', E'\\x00ff01',	'127.0.0.1');
 
 --
 -- Data for Name: kunsthåndværk; Type: TABLE DATA; Schema: public; Owner: postgres
@@ -388,6 +391,12 @@ ALTER TABLE ONLY "invisibles"
 
 CREATE INDEX comments_post_id_idx ON comments USING btree (post_id);
 
+--
+-- Name: comments_category_id_idx; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
+--
+
+CREATE INDEX comments_category_id_idx ON comments USING btree (category_id);
+
 
 --
 -- Name: post_tags_post_id_idx; Type: INDEX; Schema: public; Owner: postgres; Tablespace:
@@ -444,6 +453,14 @@ CREATE INDEX "kunsthåndværk_user_id_idx" ON "kunsthåndværk" USING btree (use
 
 ALTER TABLE ONLY comments
     ADD CONSTRAINT comments_post_id_fkey FOREIGN KEY (post_id) REFERENCES posts(id);
+
+
+--
+-- Name: comments_category_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY comments
+    ADD CONSTRAINT comments_category_id_fkey FOREIGN KEY (category_id) REFERENCES categories(id);
 
 
 --

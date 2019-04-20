@@ -6,6 +6,7 @@ use Tqdev\PhpCrudApi\Column\Reflection\ReflectedTable;
 use Tqdev\PhpCrudApi\Database\GenericDB;
 use Tqdev\PhpCrudApi\Record\Condition\ColumnCondition;
 use Tqdev\PhpCrudApi\Record\Condition\OrCondition;
+use Tqdev\PhpCrudApi\Middleware\Communication\VariableStore;
 
 class RelationJoiner
 {
@@ -16,6 +17,7 @@ class RelationJoiner
     public function __construct(ReflectionService $reflection, ColumnIncluder $columns)
     {
         $this->reflection = $reflection;
+        $this->ordering = new OrderingInfo();
         $this->columns = $columns;
     }
 
@@ -93,10 +95,14 @@ class RelationJoiner
         foreach ($joins->getKeys() as $t2Name) {
 
             $t2 = $this->reflection->getTable($t2Name);
-
+            
             $belongsTo = count($t1->getFksTo($t2->getName())) > 0;
             $hasMany = count($t2->getFksTo($t1->getName())) > 0;
-            $t3 = $this->hasAndBelongsToMany($t1, $t2);
+            if (!$belongsTo && !$hasMany) {
+                $t3 = $this->hasAndBelongsToMany($t1, $t2);
+            } else {
+                $t3 = null;
+            }
             $hasAndBelongsToMany = ($t3 != null);
 
             $newRecords = array();
@@ -107,11 +113,11 @@ class RelationJoiner
             if ($belongsTo) {
                 $fkValues = $this->getFkEmptyValues($t1, $t2, $records);
                 $this->addFkRecords($t2, $fkValues, $params, $db, $newRecords);
-            }
+            } 
             if ($hasMany) {
                 $pkValues = $this->getPkEmptyValues($t1, $records);
                 $this->addPkRecords($t1, $t2, $pkValues, $params, $db, $newRecords);
-            }
+            } 
             if ($hasAndBelongsToMany) {
                 $habtmValues = $this->getHabtmEmptyValues($t1, $t2, $t3, $db, $records);
                 $this->addFkRecords($t2, $habtmValues->fkValues, $params, $db, $newRecords);
@@ -122,14 +128,14 @@ class RelationJoiner
             if ($fkValues != null) {
                 $this->fillFkValues($t2, $newRecords, $fkValues);
                 $this->setFkValues($t1, $t2, $records, $fkValues);
-            }
+            } 
             if ($pkValues != null) {
                 $this->fillPkValues($t1, $t2, $newRecords, $pkValues);
                 $this->setPkValues($t1, $t2, $records, $pkValues);
-            }
+            } 
             if ($habtmValues != null) {
                 $this->fillFkValues($t2, $newRecords, $habtmValues->fkValues);
-                $this->setHabtmValues($t1, $t3, $records, $habtmValues);
+                $this->setHabtmValues($t1, $t2, $records, $habtmValues);
             }
         }
     }
@@ -204,7 +210,12 @@ class RelationJoiner
             $conditions[] = new ColumnCondition($fk, 'in', $pkValueKeys);
         }
         $condition = OrCondition::fromArray($conditions);
-        foreach ($db->selectAllUnordered($t2, $columnNames, $condition) as $record) {
+        $columnOrdering = array();
+        $limit = VariableStore::get("joinLimits.maxRecords") ?: -1;
+        if ($limit != -1) {
+            $columnOrdering = $this->ordering->getDefaultColumnOrdering($t2);
+        }
+        foreach ($db->selectAll($t2, $columnNames, $condition, $columnOrdering, 0, $limit) as $record) {
             $records[] = $record;
         }
     }
@@ -249,8 +260,13 @@ class RelationJoiner
 
         $pkIds = implode(',', array_keys($pkValues));
         $condition = new ColumnCondition($t3->getColumn($fk1Name), 'in', $pkIds);
+        $columnOrdering = array();
 
-        $records = $db->selectAllUnordered($t3, $columnNames, $condition);
+        $limit = VariableStore::get("joinLimits.maxRecords") ?: -1;
+        if ($limit != -1) {
+            $columnOrdering = $this->ordering->getDefaultColumnOrdering($t3);
+        }
+        $records = $db->selectAll($t3, $columnNames, $condition, $columnOrdering, 0, $limit);
         foreach ($records as $record) {
             $val1 = $record[$fk1Name];
             $val2 = $record[$fk2Name];
@@ -261,10 +277,10 @@ class RelationJoiner
         return new HabtmValues($pkValues, $fkValues);
     }
 
-    private function setHabtmValues(ReflectedTable $t1, ReflectedTable $t3, array &$records, HabtmValues $habtmValues) /*: void*/
+    private function setHabtmValues(ReflectedTable $t1, ReflectedTable $t2, array &$records, HabtmValues $habtmValues) /*: void*/
     {
         $pkName = $t1->getPk()->getName();
-        $t3Name = $t3->getName();
+        $t2Name = $t2->getName();
         foreach ($records as $i => $record) {
             $key = $record[$pkName];
             $val = array();
@@ -272,7 +288,7 @@ class RelationJoiner
             foreach ($fks as $fk) {
                 $val[] = $habtmValues->fkValues[$fk];
             }
-            $records[$i][$t3Name] = $val;
+            $records[$i][$t2Name] = $val;
         }
     }
 }
