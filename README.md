@@ -45,6 +45,12 @@ Test the script by opening the following URL:
 
 Don't forget to modify the configuration at the bottom of the file.
 
+Alternatively you can integrate this project into the web framework of your choice, see:
+
+- [Automatic REST API for Laravel](https://tqdev.com/2019-automatic-rest-api-laravel)
+- [Automatic REST API for Symfony 4](https://tqdev.com/2019-automatic-rest-api-symfony)
+- [Automatic REST API for SlimPHP](https://tqdev.com/2019-automatic-api-slimphp-3)
+
 ## Configuration
 
 Edit the following lines in the bottom of the file "`api.php`":
@@ -64,24 +70,13 @@ These are all the configuration options and their default value between brackets
 - "password": Password of the user connecting to the database (no default)
 - "database": Database the connecting is made to (no default)
 - "middlewares": List of middlewares to load (`cors`)
-- "controllers": List of controllers to load (`records,openapi`)
+- "controllers": List of controllers to load (`records,geojson,openapi`)
 - "openApiBase": OpenAPI info (`{"info":{"title":"PHP-CRUD-API","version":"1.0.0"}}`)
 - "cacheType": `TempFile`, `Redis`, `Memcache`, `Memcached` or `NoCache` (`TempFile`)
 - "cachePath": Path/address of the cache (defaults to system's temp directory)
 - "cacheTime": Number of seconds the cache is valid (`10`)
 - "debug": Show errors in the "X-Debug-Info" header (`false`)
-
-## Compilation
-
-The code resides in the "`src`" directory. You can access it at the URL:
-
-    http://localhost:8080/src/records/posts/1
-
-You can compile all files into a single "`api.php`" file using:
-
-    php build.php
-
-NB: The script appends the classes in alphabetical order (directories first).
+- "basePath": URI base path of the API (determined using PATH_INFO by default)
 
 ## Limitations
 
@@ -104,7 +99,7 @@ The following features are supported:
   - Supports a JSON array as input (batch insert)
   - Sanitize and validate input using callbacks
   - Permission system for databases, tables, columns and records
-  - Multi-tenant database layouts are supported
+  - Multi-tenant single and multi database layouts are supported
   - Multi-domain CORS support for cross-domain requests
   - Support for reading joined results from multiple tables
   - Search support on multiple criteria
@@ -112,102 +107,36 @@ The following features are supported:
   - Relation detection with nested results (belongsTo, hasMany and HABTM)
   - Atomic increment support via PATCH (for counters)
   - Binary fields supported with base64 encoding
-  - Spatial/GIS fields and filters supported with WKT
+  - Spatial/GIS fields and filters supported with WKT and GeoJSON
   - Generate API documentation using OpenAPI tools
   - Authentication via JWT token or username/password
+  - Database connection parameters may depend on authentication
+  - Support for reading database structure in JSON
+  - Support for modifying database structure using REST endpoint
+  - Security enhancing middleware is included
+  - Standard compliant: PSR-2, PSR-4, PSR-7, PSR-15 and PSR-17
 
-### Extra Features
+## Compilation
 
-These features are new in v2 and were not included in v1:
+You can compile all files into a single "`api.php`" file using:
 
-  - Does not reflect on every request (better performance)
-  - Complex filters (with both "and" & "or") are supported
-  - Support for output of database structure in JSON
-  - Support for boolean and binary data in all database engines
-  - Support for relational data on read (not only on list operation)
-  - Support for middleware to modify all operations (also list)
-  - Error reporting in JSON with corresponding HTTP status
-  - Support for basic authentication and via auth provider (JWT)
-  - Support for basic firewall functionality
-  - Prevent database scraping using list limits
+    php build.php
 
-### Dropped features
+You can access the non-compiled code at the URL:
 
-The following features of v1 were dropped in v2:
+    http://localhost:8080/src/records/posts/1
 
-  - ~~Streaming data, low memory footprint~~
-  - ~~Supports file upload from web forms (multipart/form-data)~~
-  - ~~Condensed JSON output: first row contains field names~~
-  - ~~Relation "transforms" (of condensed JSON) for PHP and JavaScript~~
-  - ~~Unstructured data support through JSON/JSONB~~
-  - ~~SQLite support~~
+The non-compiled code resides in the "`src`" and "`vendor`" directories. The "`vendor`" directory contains the dependencies.
 
-NB: You can find v1 here: https://github.com/mevdschee/php-crud-api/tree/v1
+### Updating dependencies
 
-## Middleware
+You can update all dependencies of this project using the following command:
 
-You can enable the following middleware using the "middlewares" config parameter:
+    php update.php
 
-- "firewall": Limit access to specific IP addresses
-- "cors": Support for CORS requests (enabled by default)
-- "xsrf": Block XSRF attacks using the 'Double Submit Cookie' method
-- "ajaxOnly": Restrict non-AJAX requests to prevent XSRF attacks
-- "jwtAuth": Support for "JWT Authentication"
-- "basicAuth": Support for "Basic Authentication"
-- "authorization": Restrict access to certain tables or columns
-- "validation": Return input validation errors for custom rules
-- "ipAddress": Fill a protected field with the IP address on create
-- "sanitation": Apply input sanitation on create and update
-- "multiTenancy": Restricts tenants access in a multi-tenant scenario
-- "pageLimits": Restricts list operations to prevent database scraping
-- "joinLimits": Restricts join parameters to prevent database scraping
-- "customization": Provides handlers for request and response customization
+This script will install and run [Composer](https://getcomposer.org/) to update the dependencies.
 
-The "middlewares" config parameter is a comma separated list of enabled middlewares.
-You can tune the middleware behavior using middleware specific configuration parameters:
-
-- "firewall.reverseProxy": Set to "true" when a reverse proxy is used ("")
-- "firewall.allowedIpAddresses": List of IP addresses that are allowed to connect ("")
-- "cors.allowedOrigins": The origins allowed in the CORS headers ("*")
-- "cors.allowHeaders": The headers allowed in the CORS request ("Content-Type, X-XSRF-TOKEN")
-- "cors.allowMethods": The methods allowed in the CORS request ("OPTIONS, GET, PUT, POST, DELETE, PATCH")
-- "cors.allowCredentials": To allow credentials in the CORS request ("true")
-- "cors.exposeHeaders": Whitelist headers that browsers are allowed to access ("")
-- "cors.maxAge": The time that the CORS grant is valid in seconds ("1728000")
-- "xsrf.excludeMethods": The methods that do not require XSRF protection ("OPTIONS,GET")
-- "xsrf.cookieName": The name of the XSRF protection cookie ("XSRF-TOKEN")
-- "xsrf.headerName": The name of the XSRF protection header ("X-XSRF-TOKEN")
-- "ajaxOnly.excludeMethods": The methods that do not require AJAX ("OPTIONS,GET")
-- "ajaxOnly.headerName": The name of the required header ("X-Requested-With")
-- "ajaxOnly.headerValue": The value of the required header ("XMLHttpRequest")
-- "jwtAuth.mode": Set to "optional" if you want to allow anonymous access ("required")
-- "jwtAuth.header": Name of the header containing the JWT token ("X-Authorization")
-- "jwtAuth.leeway": The acceptable number of seconds of clock skew ("5")
-- "jwtAuth.ttl": The number of seconds the token is valid ("30")
-- "jwtAuth.secret": The shared secret used to sign the JWT token with ("")
-- "jwtAuth.algorithms": The algorithms that are allowed, empty means 'all' ("")
-- "jwtAuth.audiences": The audiences that are allowed, empty means 'all' ("")
-- "jwtAuth.issuers": The issuers that are allowed, empty means 'all' ("")
-- "basicAuth.mode": Set to "optional" if you want to allow anonymous access ("required")
-- "basicAuth.realm": Text to prompt when showing login ("Username and password required")
-- "basicAuth.passwordFile": The file to read for username/password combinations (".htpasswd")
-- "authorization.tableHandler": Handler to implement table authorization rules ("")
-- "authorization.columnHandler": Handler to implement column authorization rules ("")
-- "authorization.recordHandler": Handler to implement record authorization filter rules ("")
-- "validation.handler": Handler to implement validation rules for input values ("")
-- "ipAddress.tables": Tables to search for columns to override with IP address ("")
-- "ipAddress.columns": Columns to protect and override with the IP address on create ("")
-- "sanitation.handler": Handler to implement sanitation rules for input values ("")
-- "multiTenancy.handler": Handler to implement simple multi-tenancy rules ("")
-- "pageLimits.pages": The maximum page number that a list operation allows ("100")
-- "pageLimits.records": The maximum number of records returned by a list operation ("1000")
-- "joinLimits.depth": The maximum depth (length) that is allowed in a join path ("3")
-- "joinLimits.tables": The maximum number of tables that you are allowed to join ("10")
-- "joinLimits.records": The maximum number of records returned for a joined entity ("1000")
-- "customization.beforeHandler": Handler to implement request customization ("")
-- "customization.afterHandler": Handler to implement response customization ("")
-
-If you don't specify these parameters in the configuration, then the default values (between brackets) are used.
+NB: The update script will also patch the dependencies in the vendor directory for PHP 7.0 compatibility.
 
 ## TreeQL, a pragmatic GraphQL
 
@@ -617,15 +546,153 @@ For spatial support there is an extra set of filters that can be applied on geom
 
 These filters are based on OGC standards and so is the WKT specification in which the geometry columns are represented.
 
+#### GeoJSON
+
+The GeoJSON support is a read-only view on the tables and records in GeoJSON format. These requests are supported:
+
+    method path                  - operation - description
+    ----------------------------------------------------------------------------------------
+    GET    /geojson/{table}      - list      - lists records as a GeoJSON FeatureCollection
+    GET    /geojson/{table}/{id} - read      - reads a record by primary key as a GeoJSON Feature
+
+The "`/geojson`" endpoint uses the "`/records`" endpoint internally and inherits all functionality, such as joins and filters.
+It also supports a "geometry" parameter to indicate the name of the geometry column in case the table has more than one.
+For map views it supports the "bbox" parameter in which you can specify upper-left and lower-right coordinates (comma separated).
+The following Geometry types are supported by the GeoJSON implementation:
+
+  - Point
+  - MultiPoint
+  - LineString
+  - MultiLineString
+  - Polygon
+  - MultiPolygon
+
+The GeoJSON functionality is enabled by default, but can be disabled using the "controllers" configuration.
+
+## Middleware
+
+You can enable the following middleware using the "middlewares" config parameter:
+
+- "firewall": Limit access to specific IP addresses
+- "cors": Support for CORS requests (enabled by default)
+- "xsrf": Block XSRF attacks using the 'Double Submit Cookie' method
+- "ajaxOnly": Restrict non-AJAX requests to prevent XSRF attacks
+- "dbAuth": Support for "Database Authentication"
+- "jwtAuth": Support for "JWT Authentication"
+- "basicAuth": Support for "Basic Authentication"
+- "reconnect": Reconnect to the database with different parameters
+- "authorization": Restrict access to certain tables or columns
+- "validation": Return input validation errors for custom rules
+- "ipAddress": Fill a protected field with the IP address on create
+- "sanitation": Apply input sanitation on create and update
+- "multiTenancy": Restricts tenants access in a multi-tenant scenario
+- "pageLimits": Restricts list operations to prevent database scraping
+- "joinLimits": Restricts join parameters to prevent database scraping
+- "customization": Provides handlers for request and response customization
+
+The "middlewares" config parameter is a comma separated list of enabled middlewares.
+You can tune the middleware behavior using middleware specific configuration parameters:
+
+- "firewall.reverseProxy": Set to "true" when a reverse proxy is used ("")
+- "firewall.allowedIpAddresses": List of IP addresses that are allowed to connect ("")
+- "cors.allowedOrigins": The origins allowed in the CORS headers ("*")
+- "cors.allowHeaders": The headers allowed in the CORS request ("Content-Type, X-XSRF-TOKEN")
+- "cors.allowMethods": The methods allowed in the CORS request ("OPTIONS, GET, PUT, POST, DELETE, PATCH")
+- "cors.allowCredentials": To allow credentials in the CORS request ("true")
+- "cors.exposeHeaders": Whitelist headers that browsers are allowed to access ("")
+- "cors.maxAge": The time that the CORS grant is valid in seconds ("1728000")
+- "xsrf.excludeMethods": The methods that do not require XSRF protection ("OPTIONS,GET")
+- "xsrf.cookieName": The name of the XSRF protection cookie ("XSRF-TOKEN")
+- "xsrf.headerName": The name of the XSRF protection header ("X-XSRF-TOKEN")
+- "ajaxOnly.excludeMethods": The methods that do not require AJAX ("OPTIONS,GET")
+- "ajaxOnly.headerName": The name of the required header ("X-Requested-With")
+- "ajaxOnly.headerValue": The value of the required header ("XMLHttpRequest")
+- "dbAuth.mode": Set to "optional" if you want to allow anonymous access ("required")
+- "dbAuth.usersTable": The table that is used to store the users in ("users")
+- "dbAuth.usernameColumn": The users table column that holds usernames ("username")
+- "dbAuth.passwordColumn": The users table column that holds passwords ("password")
+- "dbAuth.returnedColumns": The columns returned on successful login, empty means 'all' ("")
+- "jwtAuth.mode": Set to "optional" if you want to allow anonymous access ("required")
+- "jwtAuth.header": Name of the header containing the JWT token ("X-Authorization")
+- "jwtAuth.leeway": The acceptable number of seconds of clock skew ("5")
+- "jwtAuth.ttl": The number of seconds the token is valid ("30")
+- "jwtAuth.secret": The shared secret used to sign the JWT token with ("")
+- "jwtAuth.algorithms": The algorithms that are allowed, empty means 'all' ("")
+- "jwtAuth.audiences": The audiences that are allowed, empty means 'all' ("")
+- "jwtAuth.issuers": The issuers that are allowed, empty means 'all' ("")
+- "basicAuth.mode": Set to "optional" if you want to allow anonymous access ("required")
+- "basicAuth.realm": Text to prompt when showing login ("Username and password required")
+- "basicAuth.passwordFile": The file to read for username/password combinations (".htpasswd")
+- "reconnect.driverHandler": Handler to implement retrieval of the database driver ("")
+- "reconnect.addressHandler": Handler to implement retrieval of the database address ("")
+- "reconnect.portHandler": Handler to implement retrieval of the database port ("")
+- "reconnect.databaseHandler": Handler to implement retrieval of the database name ("")
+- "reconnect.usernameHandler": Handler to implement retrieval of the database username ("")
+- "reconnect.passwordHandler": Handler to implement retrieval of the database password ("")
+- "authorization.tableHandler": Handler to implement table authorization rules ("")
+- "authorization.columnHandler": Handler to implement column authorization rules ("")
+- "authorization.recordHandler": Handler to implement record authorization filter rules ("")
+- "validation.handler": Handler to implement validation rules for input values ("")
+- "ipAddress.tables": Tables to search for columns to override with IP address ("")
+- "ipAddress.columns": Columns to protect and override with the IP address on create ("")
+- "sanitation.handler": Handler to implement sanitation rules for input values ("")
+- "multiTenancy.handler": Handler to implement simple multi-tenancy rules ("")
+- "pageLimits.pages": The maximum page number that a list operation allows ("100")
+- "pageLimits.records": The maximum number of records returned by a list operation ("1000")
+- "joinLimits.depth": The maximum depth (length) that is allowed in a join path ("3")
+- "joinLimits.tables": The maximum number of tables that you are allowed to join ("10")
+- "joinLimits.records": The maximum number of records returned for a joined entity ("1000")
+- "customization.beforeHandler": Handler to implement request customization ("")
+- "customization.afterHandler": Handler to implement response customization ("")
+
+If you don't specify these parameters in the configuration, then the default values (between brackets) are used.
+
+In the sections below you find more information on the built-in middleware.
+
 ### Authentication
 
-Authentication is done by means of sending a "Authorization" header. It identifies the user and stores this in the `$_SESSION` super global. 
+Currently there are three types of authentication supported. They all store the authenticated user in the `$_SESSION` super global.
 This variable can be used in the authorization handlers to decide wether or not sombeody should have read or write access to certain tables, columns or records.
-Currently there are two types of authentication supported: "Basic" and "JWT". This functionality is enabled by adding the 'basicAuth' and/or 'jwtAuth' middleware.
+The following overview shows the kinds of authentication middleware that you can enable.
+
+| Name     | Middleware | Authenticated via      | Users are stored in | Session variable        |
+| -------- | ---------- | ---------------------- | ------------------- | ----------------------- |
+| Database | dbAuth     | '/login' endpoint      | database table      | `$_SESSION['user']`     |
+| Basic    | basicAuth  | 'Authorization' header | '.htpasswd' file    | `$_SESSION['username']` |
+| JWT      | jwtAuth    | 'Authorization' header | identity provider   | `$_SESSION['claims']`   |
+
+Below you find more information on each of the authentication types.
+
+#### Database authentication
+
+The database authentication middleware defines two new routes:
+
+    method path       - parameters               - description
+    ----------------------------------------------------------------------------------------
+    POST   /login     - username + password      - logs a user in by username and password
+    POST   /logout    -                          - logs out the currently logged in user
+
+A user can be logged in by sending it's username and password to the login endpoint (in JSON format).
+The authenticated user (with all it's properties) will be stored in the `$_SESSION['user']` variable.
+The user can be logged out by sending a POST request with an empty body to the logout endpoint.
+The passwords are stored as hashes in the password column in the users table. To generate the hash value
+for the password 'pass2' you can run on the command line:
+
+    php -r 'echo password_hash("pass2", PASSWORD_DEFAULT)."\n";'
+
+It is IMPORTANT to restrict access to the users table using the 'authorization' middleware, otherwise all 
+users can freely add, modify or delete any account! The minimal configuration is shown below:
+
+    'middlewares' => 'dbAuth,authorization',
+    'authorization.tableHandler' => function ($operation, $tableName) {
+        return $tableName != 'users';
+    },
+
+Note that this middleware uses session cookies and stores the logged in state on the server.
 
 #### Basic authentication
 
-The Basic type supports a file that holds the users and their (hashed) passwords separated by a colon (':'). 
+The Basic type supports a file (by default '.htpasswd') that holds the users and their (hashed) passwords separated by a colon (':'). 
 When the passwords are entered in plain text they fill be automatically hashed.
 The authenticated username will be stored in the `$_SESSION['username']` variable.
 You need to send an "Authorization" header containing a base64 url encoded and colon separated username and password after the word "Basic".
@@ -657,7 +724,54 @@ This example sends the signed claims:
 
 NB: The JWT implementation only supports the RSA and HMAC based algorithms.
 
-## Authorizing operations
+##### Configure and test JWT authentication with Auth0
+
+First you need to create an account on [Auth0](https://auth0.com/auth/login).
+Once logged in, you have to create an application (its type does not matter). Collect the `Domain`
+and `Client ID` and keep them for a later use. Then, create an API: give it a name and fill the
+`identifier` field with your API endpoint's URL.
+
+Then you have to configure the `jwtAuth.secret` configuration in your `api.php` file.
+Don't fill it with the `secret` you will find in your Auth0 application settings but with **a
+public certificate**. To find it, go to the settings of your application, then in "Extra settings".
+You will now find a "Certificates" tab where you will find your Public Key in the Signing
+Certificate field.
+
+To test your integration, you can copy the [auth0/vanilla.html](examples/clients/auth0/vanilla.html)
+file. Be sure to fill these three variables:
+
+ - `authUrl` with your Auth0 domain
+ - `clientId` with your Client ID
+ - `audience` with the API URL you created in Auth0
+
+⚠️ If you don't fill the audience parameter, it will not work because you won't get a valid JWT.
+
+You can also change the `url` variable, used to test the API with authentication.
+
+[More info](https://auth0.com/docs/api-auth/tutorials/verify-access-token)
+
+##### Configure and test JWT authentication with Firebase
+
+First you need to create a Firebase project on the [Firebase console](https://console.firebase.google.com/).
+Add a web application to this project and grab the code snippet for later use.
+
+Then you have to configure the `jwtAuth.secret` configuration in your `api.php` file.
+Grab the public key via this [URL](https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com).
+There may be several certificates, just grab the one corresponding to your `kid` (if you don't
+know what it is, just test them all until you will be logged in).
+Now, just fill `jwtAuth.secret` with your public key.F
+
+To test your integration, you can copy the [firebase/vanilla.html](examples/clients/firebase/vanilla.html)
+file and the [firebase/vanilla-success.html](examples/clients/firebase/vanilla-success.html) file,
+used as a "success" page and to display the API result.
+
+Replace, in both files, the Firebase configuration (`firebaseConfig` object).
+
+You can also change the `url` variable, used to test the API with authentication.
+
+[More info](https://firebase.google.com/docs/auth/admin/verify-id-tokens#verify_id_tokens_using_a_third-party_jwt_library)
+
+### Authorizing operations
 
 The Authorization model acts on "operations". The most important ones are listed here:
 
@@ -704,6 +818,25 @@ This construct adds a filter to every executed query.
 
 NB: You need to handle the creation of invalid records with a validation (or sanitation) handler.
 
+### SQL GRANT authorization
+
+You can alternatively use database permissons (SQL GRANT statements) to define the authorization model. In this case you
+should not use the "authorization" middleware, but you do need to use the "reconnect" middleware. The handlers of the
+"reconnect" middleware allow you to specify the correct username and password, like this:
+
+    'reconnect.usernameHandler' => function () {
+        return 'mevdschee';
+    },
+    'reconnect.passwordHandler' => function () {
+        return 'secret123';
+    },
+
+This will make the API connect to the database specifying "mevdschee" as the username and "secret123" as the password.
+The OpenAPI specification is less specific on allowed and disallowed operations, when you are using database permissions,
+as the permissions are not read in the reflection step.
+
+NB: You may want to retrieve the username and password from the session (the "$_SESSION" variable).
+
 ### Sanitizing input
 
 By default all input is accepted and sent to the database. If you want to strip (certain) HTML tags before storing you may add 
@@ -746,8 +879,17 @@ You can parse this output to make form fields show up with a red border and thei
 
 ### Multi-tenancy support
 
-You may use the "multiTenancy" middleware when you have a multi-tenant database. 
-If your tenants are identified by the "customer_id" column you can use the following handler:
+Two forms of multi-tenancy are supported:
+
+ - Single database, where every table has a tenant column (using the "multiTenancy" middleware).
+ - Multi database, where every tenant has it's own database (using the "reconnect" middleware).
+
+Below is an explanation of the corresponding middlewares.
+
+#### Multi-tenancy middleware
+
+You may use the "multiTenancy" middleware when you have a single multi-tenant database. 
+If your tenants are identified by the "customer_id" column, then you can use the following handler:
 
     'multiTenancy.handler' => function ($operation, $tableName) {
         return ['customer_id' => 12];
@@ -755,6 +897,22 @@ If your tenants are identified by the "customer_id" column you can use the follo
 
 This construct adds a filter requiring "customer_id" to be "12" to every operation (except for "create").
 It also sets the column "customer_id" on "create" to "12" and removes the column from any other write operation.
+
+NB: You may want to retrieve the customer id from the session (the "$_SESSION" variable).
+
+#### Reconnect middleware
+
+You may use the "reconnect" middleware when you have a separate database for each tenant.
+If the tenant has it's own database named "customer_12", then you can use the following handler:
+
+    'reconnect.databaseHandler' => function () {
+        return 'customer_12';
+    },
+
+This will make the API reconnect to the database specifying "customer_12" as the database name. If you don't want
+to use the same credentials, then you should also implement the "usernameHandler" and "passwordHandler".
+
+NB: You may want to retrieve the database name from the session (the "$_SESSION" variable).
 
 ### Prevent database scraping
 
@@ -782,14 +940,14 @@ You may use the "customization" middleware to modify request and response and im
         $environment->start = microtime(true);
     },
     'customization.afterHandler' => function ($operation, $tableName, $response, $environment) {
-        $response->addHeader('X-Time-Taken', microtime(true) - $environment->start);
+        return $response->withHeader('X-Time-Taken', microtime(true) - $environment->start);
     },
 
 The above example will add a header "X-Time-Taken" with the number of seconds the API call has taken.
 
 ### File uploads
 
-File uploads are supported through the [FileReader API](https://caniuse.com/#feat=filereader).
+File uploads are supported through the [FileReader API](https://caniuse.com/#feat=filereader), check out the [example](https://github.com/mevdschee/php-crud-api/blob/master/examples/clients/upload/vanilla.html).
 
 ## OpenAPI specification
 
@@ -899,6 +1057,7 @@ NB: Any non-error response will have status: 200 OK
 
 I am testing mainly on Ubuntu and I have the following test setups:
 
+  - (Docker) Debian 10 with PHP 7.3, MariaDB 10.3, PostgreSQL 11.4 (PostGIS 2.5)
   - (Docker) Debian 9 with PHP 7.0, MariaDB 10.1, PostgreSQL 9.6 (PostGIS 2.3)
   - (Docker) Ubuntu 16.04 with PHP 7.0, MariaDB 10.0, PostgreSQL 9.5 (PostGIS 2.2) and SQL Server 2017
   - (Docker) Ubuntu 18.04 with PHP 7.2, MySQL 5.7, PostgreSQL 10.4 (PostGIS 2.4)
@@ -955,6 +1114,17 @@ Install docker using the following commands and then logout and login for the ch
 To run the docker tests run "build_all.sh" and "run_all.sh" from the docker directory. The output should be:
 
     ================================================
+    Debian 10 (PHP 7.3)
+    ================================================
+    [1/4] Starting MariaDB 10.3 ..... done
+    [2/4] Starting PostgreSQL 11.4 .. done
+    [3/4] Starting SQLServer 2017 ... skipped
+    [4/4] Cloning PHP-CRUD-API v2 ... skipped
+    ------------------------------------------------
+    mysql: 100 tests ran in 3623 ms, 0 failed
+    pgsql: 100 tests ran in 1310 ms, 0 failed
+    sqlsrv: skipped, driver not loaded
+    ================================================
     Debian 9 (PHP 7.0)
     ================================================
     [1/4] Starting MariaDB 10.1 ..... done
@@ -962,8 +1132,8 @@ To run the docker tests run "build_all.sh" and "run_all.sh" from the docker dire
     [3/4] Starting SQLServer 2017 ... skipped
     [4/4] Cloning PHP-CRUD-API v2 ... skipped
     ------------------------------------------------
-    mysql: 95 tests ran in 2651 ms, 0 failed
-    pgsql: 95 tests ran in 573 ms, 0 failed
+    mysql: 100 tests ran in 4844 ms, 0 failed
+    pgsql: 100 tests ran in 1394 ms, 0 failed
     sqlsrv: skipped, driver not loaded
     ================================================
     Ubuntu 16.04 (PHP 7.0)
@@ -973,9 +1143,9 @@ To run the docker tests run "build_all.sh" and "run_all.sh" from the docker dire
     [3/4] Starting SQLServer 2017 ... done
     [4/4] Cloning PHP-CRUD-API v2 ... skipped
     ------------------------------------------------
-    mysql: 95 tests ran in 2670 ms, 0 failed
-    pgsql: 95 tests ran in 550 ms, 0 failed
-    sqlsrv: 95 tests ran in 6624 ms, 0 failed
+    mysql: 100 tests ran in 4932 ms, 0 failed
+    pgsql: 100 tests ran in 1394 ms, 0 failed
+    sqlsrv: 100 tests ran in 50977 ms, 0 failed
     ================================================
     Ubuntu 18.04 (PHP 7.2)
     ================================================
@@ -984,17 +1154,18 @@ To run the docker tests run "build_all.sh" and "run_all.sh" from the docker dire
     [3/4] Starting SQLServer 2017 ... skipped
     [4/4] Cloning PHP-CRUD-API v2 ... skipped
     ------------------------------------------------
-    mysql: 95 tests ran in 3186 ms, 0 failed
-    pgsql: 95 tests ran in 556 ms, 0 failed
+    mysql: 100 tests ran in 4327 ms, 0 failed
+    pgsql: 100 tests ran in 1396 ms, 0 failed
     sqlsrv: skipped, driver not loaded
 
-The above test run (including starting up the databases) takes less than one minute on my machine.
+The above test run (including starting up the databases) takes less than 5 minutes on my slow laptop.
 
     $ ./run.sh 
-    1) debian9
-    2) ubuntu16
-    3) ubuntu18
-    > 3
+    1) debian10
+    2) debian9
+    3) ubuntu16
+    4) ubuntu18
+    > 4
     ================================================
     Ubuntu 18.04 (PHP 7.2)
     ================================================
@@ -1003,8 +1174,8 @@ The above test run (including starting up the databases) takes less than one min
     [3/4] Starting SQLServer 2017 ... skipped
     [4/4] Cloning PHP-CRUD-API v2 ... skipped
     ------------------------------------------------
-    mysql: 95 tests ran in 3186 ms, 0 failed
-    pgsql: 95 tests ran in 556 ms, 0 failed
+    mysql: 100 tests ran in 4327 ms, 0 failed
+    pgsql: 100 tests ran in 1396 ms, 0 failed
     sqlsrv: skipped, driver not loaded
     root@b7ab9472e08f:/php-crud-api# 
 

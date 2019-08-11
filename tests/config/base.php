@@ -1,17 +1,28 @@
 <?php
 $settings = [
-    'database' => 'php-crud-api',
-    'username' => 'php-crud-api',
-    'password' => 'php-crud-api',
-    'controllers' => 'records,columns,cache,openapi',
-    'middlewares' => 'cors,jwtAuth,basicAuth,authorization,validation,ipAddress,sanitation,multiTenancy,pageLimits,joinLimits,customization',
+    'database' => 'incorrect_database',
+    'username' => 'incorrect_username',
+    'password' => 'incorrect_password',
+    'controllers' => 'records,columns,cache,openapi,geojson',
+    'middlewares' => 'cors,reconnect,dbAuth,jwtAuth,basicAuth,authorization,validation,ipAddress,sanitation,multiTenancy,pageLimits,joinLimits,customization',
+    'dbAuth.mode' => 'optional',
+    'dbAuth.returnedColumns' => 'id,username,password',
     'jwtAuth.mode' => 'optional',
     'jwtAuth.time' => '1538207605',
     'jwtAuth.secret' => 'axpIrCGNGqxzx2R9dtXLIPUSqPo778uhb8CA0F4Hx',
     'basicAuth.mode' => 'optional',
     'basicAuth.passwordFile' => __DIR__ . DIRECTORY_SEPARATOR . '.htpasswd',
+    'reconnect.databaseHandler' => function () {
+        return 'php-crud-api';
+    },
+    'reconnect.usernameHandler' => function () {
+        return 'php-crud-api';
+    },
+    'reconnect.passwordHandler' => function () {
+        return 'php-crud-api';
+    },
     'authorization.tableHandler' => function ($operation, $tableName) {
-        return !($tableName == 'invisibles' && !isset($_SESSION['claims']['name']) && empty($_SESSION['username']));
+        return !($tableName == 'invisibles' && !isset($_SESSION['claims']['name']) && empty($_SESSION['username']) && empty($_SESSION['user']));
     },
     'authorization.columnHandler' => function ($operation, $tableName, $columnName) {
         return !($columnName == 'invisible');
@@ -40,7 +51,7 @@ $settings = [
     },
     'customization.afterHandler' => function ($operation, $tableName, $response, $environment) {
         if ($tableName == 'kunsthåndværk' && $operation == 'increment') {
-            $response->addHeader('X-Time-Taken', 0.006/*microtime(true)*/ - $environment->start);
+            return $response->withHeader('X-Time-Taken', 0.006/*microtime(true)*/ - $environment->start);
         }
     },
     'debug' => false,
